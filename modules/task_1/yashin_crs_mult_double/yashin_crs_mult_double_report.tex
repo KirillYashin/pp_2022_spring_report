@@ -1,0 +1,1322 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Умножение разреженных матриц. Элементы типа double. Формат хранения матрицы - строковый (CRS).»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381906-1 \\ Яшин К. Е.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2022 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+\tableofcontents
+\newpage
+
+\section* {Введение}
+Разрежённая матрица ~--- матрица с преимущественно нулевыми элементами. Считается, что матрицу можно названть разреженной, если количество ненулевых элементов в ней - O(n), где n - размер матрицы.
+\newline
+Огромные разрежённые матрицы часто возникают при решении таких задач, как дифференциальное уравнение в частных производных. При хранении и преобразовании разрежённых матриц в компьютере бывает полезно, а часто и необходимо, использовать специальные алгоритмы и структуры данных, которые учитывают разрежённую структуру матрицы. Операции и алгоритмы, применяемые для работы с обычными, плотными матрицами, применительно к большим разрежённым матрицам работают относительно медленно и требуют значительных объёмов памяти. Однако разрежённые матрицы могут быть легко сжаты путём записи только своих ненулевых элементов, что снижает требования к компьютерной памяти.
+\newline
+Существует несколько способов хранения (представления) разреженных матриц. В данной работе будет рассмотрен один из них - CRS (compressed row storage).
+\addcontentsline{toc}{section}{Введение}
+
+\newpage
+
+\section* {Постановка задачи}
+Для выполнения работы необходимо реализовать умножение разреженных матриц, которые хранятся в формате CRS.
+\par Подзадачи:
+\begin{itemize}
+    \item Реализовать класс - разреженная матрица в формате CRS.
+    \item Реализовать последовательный алгоритм умножения матриц, а также параллельные с использованием OpenMP и TBB.
+    \item Протестировать правильность работы алгоритмов помощью тестов, реализованных на Google C++ Testing Framework. 
+    \item Сравнить время выполнения алгоритмов на матрицах разных размеров.
+    \item Сделать выводы об эффективности и применимости алгоритмов.
+\end{itemize}
+\addcontentsline{toc}{section}{Постановка задачи}
+
+\newpage
+
+\section* {Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+В рамках выполнения задачи был реализован класс, содержащий следующие поля и методы:
+\begin{itemize}
+    \item rows, columns - количество строк и столбцов соответственно.
+    \item values, row\_index, col\_index - массив ненулевых значений, массив индексов по столбцам и массив индексации строк соответственно.
+    \item 4 вида конструкторов и деструктор по умолчанию. 
+    \item Перегрузка оператора ==.
+    \item sparse\_matrix\_to\_default - функция, конвертирующая матрицу из формата CRS в обычный.
+    \item sparse\_multiplication - последовательное умножение матриц.
+    \item sparse\_multiplication\_omp - параллельное умножение матриц с использованием OpenMP.
+    \item sparse\_multiplication\_tbb - параллельное умножение матриц с использованием TBB.
+\end{itemize}
+
+\par
+Помимо этого, есть еще две функции:
+\begin{itemize}
+    \item matrix\_multiplication - умножение матриц, хранимых в обычном формате.
+    \item random\_matrix - генератор случайной матрицы.
+\end{itemize}
+
+\par
+Алгоритм умножения разреженных матриц A и B:
+\begin{enumerate}
+    \item Создать результирующую матрицу правильных размеров.
+    \item В цикле с итератором i от 0 до N-1 (N - количество строк в матрице A) пройтись по всем строкам матрицы А.
+    \item Внутри каждого их этих циклов пройтись по столбцам матрицы B (итератор - j) и к соответствующему элементу временного вектора значений прибавлять результат умножения ненулевых элементов из строки матрицы A с индексом i на ненулевые элементы из столбца матрицы B с индексом j.
+    \item Внутри каждого их этих циклов, пройтись в цикле с итератором k от 0 до N (N - количество столбцов в матрице B) по элементам временного вектора из предыдущего пункта и заполнить поля values, col\_index для результата в индексом k и значением элемента временного вектора с индексом k только в том случае, если значение элемента временного вектора с индексом k отлично от нуля.
+    \item Внутри каждого их этих циклов в конец поля row\_index результирующей матрицы положить текущий размер вектора values результирующей матрицы.
+\end{enumerate}
+
+\newpage
+\section* {Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Так как алгоритм не является рекурсивным, идея распараллеливания очень простая - нужно распараллелить цикл из п.2 выше.
+\begin{itemize}
+    \item OpenMP: Последовательную часть (цикл из п.2 выше) поместить в pragma omp parallel for.
+    \item TBB: Использовать tbb::parallel for с лямбда-функцией в виде цикла из п.2 выше. Функтор принимает 0 и наибольший индекс строки, как параметры.
+\end{itemize}
+Правда, в данной реализации есть сложность. В параллельной части заполняются только временные векторы. После завершения работы параллельной части программы значения из этих временных векторов нужно использовать для заполнения полей результирующей матрицы.
+
+\newpage
+\section* {Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Для хранения матрицы в обычном виде используется:
+\begin{lstlisting}
+  using Matrix = std::vector<std::vector<double>>;
+\end{lstlisting}
+Хранение CRS матрицы осуществляется в данных полях класса:
+\begin{lstlisting}
+  public:
+    int rows;
+    int columns;
+    std::vector<double> values;
+    std::vector<int> col_index;
+    std::vector<int> row_index;
+\end{lstlisting}
+Конструкторы:
+\begin{lstlisting}
+  sparse_matrix() : rows(0), columns(0) {}
+  sparse_matrix(const int& _rows, const int& _columns, const int& cnt)
+\end{lstlisting}
+Конструктор копирования:
+\begin{lstlisting}
+  sparse_matrix(const sparse_matrix& matrix) : rows(matrix.rows), columns(matrix.columns),
+    values(matrix.values), col_index(matrix.col_index), row_index(matrix.row_index) {}
+\end{lstlisting}
+Конструктор копирования (из обычного формата хранения матрицы):
+\begin{lstlisting}
+  explicit sparse_matrix(const Matrix& matrix)
+\end{lstlisting}
+Умножение последовательное:
+\begin{lstlisting}
+  sparse_matrix sparse_multiplication(const sparse_matrix& A,
+    const sparse_matrix& B);
+\end{lstlisting}
+Возвращает результирующую матрицу.
+\newline
+Умножение OpenMP:
+\begin{lstlisting}
+  sparse_matrix sparse_multiplication_omp(const sparse_matrix& A,
+    const sparse_matrix& B);;
+\end{lstlisting}
+Возвращает результирующую матрицу.
+\newline
+Умножение TBB:
+\begin{lstlisting}
+  sparse_matrix sparse_multiplication_tbb(const sparse_matrix& A,
+    const sparse_matrix& B);;
+\end{lstlisting}
+Возвращает результирующую матрицу.
+\newline
+Умножение матриц, хранящихся в обычном формате:
+\begin{lstlisting}
+  Matrix matrix_multiplication(const Matrix& A, const Matrix& B);
+\end{lstlisting}
+Возвращает результирующую матрицу.
+\newline
+Генерация случайной матрицы:
+\begin{lstlisting}
+  Matrix random_matrix(const int& rows, const int& columns, const int& freq);
+\end{lstlisting}
+Возвращает случайно сгенерированную матрицу, где число ненулевых элементов - freq (в процентах от общего числа элементов).
+
+\newpage
+\section* {Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Для подтверждения корректности работы алгоритмов в программе реализован набор тестов, созданных с помощью использования Google C++ Testing Framework.
+\par
+Корректность работы алгоритмов проверена с помощью тестов, которые умножают одну и ту же матрицу в разреженном и обычном виде и сравнивают результаты. Корректность работы оператора сравнения проверена на тесте, который сравнивает матрицу саму с собой. По результатам тестирования алгоритм работает корректно.
+\par Конфигурация компьютера, используемого для тестирования:
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 2600, 3400 MHz, 6 cores, 12 threads.
+\item RAM: 16 ГБ DDR4.
+\item ОС: Win 10.
+\end{itemize}
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов (OpenMP).}
+\begin{tabular}{ | l | l | l | l |}
+\hline
+Размер матрицы & OpenMP & Последовательный алгоритм & Ускорение \\ \hline
+50*50 & 0.0003463 & 0.0001821 & 0.525845 \\
+100*100 & 0.0006949 & 0.0008099 & 1.16549 \\
+250*250 & 0.0052355 & 0.0077678 & 1.48368 \\
+500*500 & 0.0209112 & 0.0457263 & 2.18669 \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов (TBB).}
+\begin{tabular}{ | l | l | l | l |}
+\hline
+Размер матрицы & TBB & Последовательный алгоритм & Ускорение \\ \hline
+100*100 & 0.0010131 & 0.0002897 & 0.285954 \\
+250*250 & 0.285954 & 0.0002628 & 0.421627 \\
+500*500 & 0.0209112 & 0.0457263 & 1.30188 \\ 
+1000*1000 & 0.0154048 & 0.0380342 &  2.46898 \\ \hline
+ \end{tabular}
+\end{table}
+\par
+По результатам экспериментов видно, что OpenMP эффективнее, чем TBB. В теории, OpenMP позволяет добиться ускорения практически в 12 раз на моем компьютере, потому что программа способна работать в 12 потоков. К сожалению, данного ускорения продемонстрировать не удалось по причине того, что оно достижимо только на сверхбольших размерах матриц, для которых обыкновенное матричное умножение работает очень долго.
+\newpage
+
+\section* {Заключение}
+В ходе выполнения лабораторной работы были реализованы последовательный параллельный алгоритмы умножения разреженных матриц, хранящихся в формате CRS.
+\par
+С помощью реализованной программы, было получено сравнение эффективности работы параллельного алгоритма умножения с помощью технологий TBB и OpenMP и классического алгоритма умножения матриц с точки зрения времени. Выяснилось, что на достаточно больших размерах матриц намного эффективнее оказывается использовать параллельный алгоритм, что не удивительно. Если же сравнивать между собой технологии, то OpenMP показывает лучшие результаты. 
+\par Для подтверждения правильности работы программы написаны тесты с использованием Google Testing Framework.
+\addcontentsline{toc}{section}{Заключение}
+\newpage
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel} Гергель В.П., Стронгин Р.Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. Учебное пособие – Нижний Новгород: Изд-во ННГУ им. Н.И. Лобачевского, 2003. 184 с. ISBN 5-85746-602-4.
+\bibitem{Sisoev}Сысоев А. В., Мееров И. Б., Свистунов А. Н., Курылев А. Л., Сенин А. В., Шишков А. В., Корняков К. В.,
+Сиднев А. А. Параллельное программирование в системах с общей памятью. Инструментальная поддержка, Нижний Новгород, 2007.
+\bibitem{Wiki} Википедия. Свободная Энциклопедия. // URL: \url{https://en.wikipedia.org/wiki/Sparse_matrix}
+\end{thebibliography}
+\newpage
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+Последовательная версия:
+\newline
+Файл \verb|sparse_matrix_multiplication.h|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#ifndef MODULES_TASK_1_YASHIN_K_CRS_MULT_DOUBLE_SPARSE_MATRIX_MULTIPLICATION_CRS_H_
+#define MODULES_TASK_1_YASHIN_K_CRS_MULT_DOUBLE_SPARSE_MATRIX_MULTIPLICATION_CRS_H_
+
+#include <random>
+#include <vector>
+
+using Matrix = std::vector<std::vector<double>>;
+
+class sparse_matrix {
+    int rows;
+    int columns;
+    std::vector<double> values;
+    std::vector<int> col_index;  // Column numbers for each item
+    std::vector<int> row_index;  // Index of the beginning of each line
+
+ public:
+     sparse_matrix() : rows(0), columns(0) {}
+     sparse_matrix(int _rows, int _cols, int _elemsCount) {
+      rows = _rows;
+      columns = _cols;
+      values.resize(_elemsCount);
+      col_index.resize(_elemsCount);
+      row_index.resize(_rows + 1);
+     }
+
+     sparse_matrix(int _rows, int _cols, std::vector<double> _values,
+        std::vector<int> _col_index, std::vector<int> _row_index) {
+      rows = _rows;
+      columns = _cols;
+      values = _values;
+      col_index = _col_index;
+      row_index = _row_index;
+    }
+
+     explicit sparse_matrix(const Matrix& matrix) {
+      rows = matrix.size();
+      columns = matrix[0].size();
+
+      int el_in_row = 0;
+      row_index = {};
+      col_index = {};
+      values = {};
+      row_index.reserve(rows * columns);
+      col_index.reserve(rows * columns);
+      values.reserve(rows + 1);
+      row_index.push_back(0);
+
+      for (int i = 0; i < rows; i++) {
+          for (int j = 0; j < columns; j++) {
+              if (std::fabs(matrix[i][j]) >= 0.00001) {
+                  el_in_row++;
+                  values.push_back(matrix[i][j]);
+                  col_index.push_back(j);
+              }
+          }
+          row_index.push_back(el_in_row);
+      }
+     }
+
+     sparse_matrix(const sparse_matrix& matrix) {}
+
+     ~sparse_matrix() {}
+
+     bool operator== (const sparse_matrix& mat) const&;
+
+     Matrix sparce_matrix_to_default();
+
+     void printDefault();
+     void printMatrix();
+
+     friend sparse_matrix sparse_multiplication(const sparse_matrix& A,
+      const sparse_matrix& B);
+};
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A,
+  const sparse_matrix& B);
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B);
+Matrix random_matrix(const int& rows, const int& columns);
+
+#endif  // MODULES_TASK_1_YASHIN_K_CRS_MULT_DOUBLE_SPARSE_MATRIX_MULTIPLICATION_CRS_H_
+
+\end{lstlisting}
+Файл \verb|sparse_matrix_multiplication.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#include <vector>
+
+#include "../../modules/task_1/yashin_k_crs_mult_double/sparse_matrix_multiplication_crs.h"
+
+bool sparse_matrix::operator== (const sparse_matrix& matrix) const& {
+    if (rows != matrix.rows || col_index != matrix.col_index || columns != matrix.columns
+      || row_index != matrix.row_index || values.size() != matrix.values.size())
+        return false;
+
+    for (size_t i = 0; i < values.size(); i++)
+        if ((std::fabs(matrix.values[i] - values[i]) > 0.00001))
+            return false;
+    return true;
+}
+
+Matrix sparse_matrix::sparce_matrix_to_default() {
+    Matrix result(rows, std::vector<double>(columns, 0.0));
+
+    int temp_column = 0;
+    for (int i = 0; i < rows; i++) {
+        int temp_row = row_index[i + 1] - row_index[i];
+        while (temp_row) {
+            result[i][col_index[temp_column]] = values[temp_column];
+            temp_row -= 1;
+            temp_column += 1;
+        }
+    }
+    return result;
+}
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A, const sparse_matrix& B) {
+    sparse_matrix result;
+    result.rows = A.rows;
+    result.columns = B.columns;
+    result.row_index.push_back(0);
+    std::vector<double> temp_result_row(B.columns, 0);
+
+    for (int i = 0; i < A.rows; i++) {
+        for (int j = A.row_index[i]; j < A.row_index[i + 1]; j++) {
+            int temp_column {A.col_index[j]};
+            for (int k = B.row_index[temp_column]; k < B.row_index[temp_column + 1]; k++)
+                temp_result_row[B.col_index[k]] += A.values[j] * B.values[k];
+        }
+        for (int k = 0; k < B.columns; k++) {
+            if (temp_result_row[k]) {
+                result.values.push_back(temp_result_row[k]);
+                result.col_index.push_back(k);
+                temp_result_row[k] = 0;
+            }
+        }
+        result.row_index.push_back(result.values.size());
+    }
+    return result;
+}
+
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B) {
+    Matrix result(A.size());
+    for (size_t i = 0; i < result.size(); i++)
+        result[i].resize(B[0].size());
+
+    for (size_t i = 0; i < A.size(); i++) {
+        for (size_t j = 0; j < B[0].size(); j++) {
+            result[i][j] = 0;
+            for (size_t k = 0; k < A[0].size(); k++)
+                result[i][j] += A[i][k] * B[k][j];
+        }
+    }
+    return result;
+}
+
+Matrix random_matrix(const int& rows, const int& columns) {
+    std::random_device rand{};
+    std::mt19937 mt {rand()};
+    std::uniform_real_distribution<double> rand_value {0.0, 10.0};
+    std::uniform_int_distribution<int> rand_probability {0, 100};
+    Matrix result{};
+    result.resize(rows);
+    for (int i = 0; i < rows; i++)
+        result[i].resize(columns);
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < columns; j++) {
+            if (rand_probability(mt) <= 10)
+                result[i][j] = rand_value(mt);
+        }
+    }
+    return result;
+}
+
+\end{lstlisting}
+Файл \verb|main.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#include <gtest/gtest.h>
+#include <vector>
+#include "../../modules/task_1/yashin_k_crs_mult_double/sparse_matrix_multiplication_crs.h"
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Create_Matrix) {
+    Matrix matrix{{0.0, 1.1, 0.0, 0.0, 2.2},
+                  {0.0, 0.0, 3.3, 4.4, 0.0},
+                  {0.0, 5.5, 0.0, 0.0, 0.0},
+                  {0.0, 0.0, 0.0, 6.6, 0.0},
+                  {7.7, 0.0, 0.0, 0.0, 0.0}};
+    int rows = 5;
+    int columns = 5;
+    std::vector<double> values = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7};
+    std::vector<int> col_index = {1, 4, 2, 3, 1, 3, 0};
+    std::vector<int> row_index = {0, 2, 4, 5, 6, 7};
+    EXPECT_NO_THROW({sparse_matrix A(matrix);});
+    EXPECT_NO_THROW({sparse_matrix B(rows, columns, values, col_index, row_index);});
+    sparse_matrix A(matrix);
+    sparse_matrix B(rows, columns, values, col_index, row_index);
+    ASSERT_EQ(A, B);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Compare_Sparse_Matrix) {
+    int rows = 5;
+    int cols = 5;
+    std::vector<double> values = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7};
+    std::vector<int> col_index = {1, 4, 2, 3, 1, 3, 0};
+    std::vector<int> row_index = {0, 2, 4, 5, 6, 7};
+
+    sparse_matrix A(rows, cols, values, col_index, row_index);
+    sparse_matrix B(rows, cols, values, col_index, row_index);
+    ASSERT_TRUE(A == B);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Transform) {
+    sparse_matrix _sparse_matrix(random_matrix(50, 50));
+    Matrix matrix(_sparse_matrix.sparce_matrix_to_default());
+    sparse_matrix result(matrix);
+    ASSERT_EQ(_sparse_matrix, result);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Miltiply) {
+    Matrix A{{0.0, 1.1, 0.0, 0.0, 2.2},
+             {0.0, 0.0, 3.3, 4.4, 0.0},
+             {0.0, 5.5, 0.0, 0.0, 0.0},
+             {0.0, 0.0, 0.0, 6.6, 0.0},
+             {7.7, 0.0, 0.0, 0.0, 0.0}};
+
+    Matrix true_result({{16.94, 0.0, 3.63, 4.84, 0.0},
+                       {0.0, 18.15, 0.0, 29.04, 0.0},
+                       {0.0, 0.0, 18.15, 24.2, 0.0},
+                       {0.0, 0.0, 0.0, 43.56, 0.0},
+                       {0.0, 8.47, 0.0, 0.0, 16.94}});
+
+    Matrix result = matrix_multiplication(A, A);
+
+    ASSERT_EQ(result.size(), true_result.size());
+    ASSERT_EQ(result[0].size(), true_result[0].size());
+
+    for (size_t i = 0; i < result.size(); i++) {
+        for (size_t j = 0; j < result[0].size(); j++)
+            ASSERT_DOUBLE_EQ(result[i][j], true_result[i][j]);
+    }
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Multiply_Sparse) {
+    int rows = 5;
+    int columns = 5;
+    std::vector<double> values = {1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7};
+    std::vector<int> col_index = {1, 4, 2, 3, 1, 3, 0};
+    std::vector<int> row_index = {0, 2, 4, 5, 6, 7};
+
+    Matrix true_result({{16.94, 0.0, 3.63, 4.84, 0.0},
+                       {0.0, 18.15, 0.0, 29.04, 0.0},
+                       {0.0, 0.0, 18.15, 24.2, 0.0},
+                       {0.0, 0.0, 0.0, 43.56, 0.0},
+                       {0.0, 8.47, 0.0, 0.0, 16.94}});
+
+    sparse_matrix A(rows, columns, values, col_index, row_index);
+    sparse_matrix result = sparse_multiplication(A, A);
+    sparse_matrix _true_result(true_result);
+
+    ASSERT_EQ(_true_result, result);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Multiply_Random) {
+    Matrix A(random_matrix(10, 10));
+    Matrix B(random_matrix(10, 10));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    sparse_matrix result_sparse = sparse_multiplication(sA, sB);
+    Matrix result = matrix_multiplication(A, B);
+
+    sparse_matrix _result(result);
+
+    ASSERT_EQ(_result, result_sparse);
+}
+
+\end{lstlisting}
+OpenMP версия:
+\newline
+Файл \verb|sparse_matrix_multiplication_omp.h|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#ifndef MODULES_TASK_2_YASHIN_K_CRS_MULT_DOUBLE_OMP_SPARSE_MATRIX_MULTIPLICATION_OMP_H_
+#define MODULES_TASK_2_YASHIN_K_CRS_MULT_DOUBLE_OMP_SPARSE_MATRIX_MULTIPLICATION_OMP_H_
+
+#include <random>
+#include <vector>
+
+using Matrix = std::vector<std::vector<double>>;
+
+class sparse_matrix {
+    int rows;
+    int columns;
+    std::vector<double> values;
+    std::vector<int> col_index;  // Column numbers for each item
+    std::vector<int> row_index;  // Index of the beginning of each line
+
+ public:
+     sparse_matrix() : rows(0), columns(0) {}
+     sparse_matrix(int _rows, int _cols, int _elemsCount) {
+      rows = _rows;
+      columns = _cols;
+      values.resize(_elemsCount);
+      col_index.resize(_elemsCount);
+      row_index.resize(_rows + 1);
+     }
+
+     sparse_matrix(int _rows, int _cols, std::vector<double> _values,
+        std::vector<int> _col_index, std::vector<int> _row_index) {
+      rows = _rows;
+      columns = _cols;
+      values = _values;
+      col_index = _col_index;
+      row_index = _row_index;
+    }
+
+     explicit sparse_matrix(const Matrix& matrix) {
+      rows = matrix.size();
+      columns = matrix[0].size();
+
+      int el_in_row = 0;
+      row_index = {};
+      col_index = {};
+      values = {};
+      row_index.reserve(rows * columns);
+      col_index.reserve(rows * columns);
+      values.reserve(rows + 1);
+      row_index.push_back(0);
+
+      for (int i = 0; i < rows; i++) {
+          for (int j = 0; j < columns; j++) {
+              if (std::fabs(matrix[i][j]) >= 0.00001) {
+                  el_in_row++;
+                  values.push_back(matrix[i][j]);
+                  col_index.push_back(j);
+              }
+          }
+          row_index.push_back(el_in_row);
+      }
+     }
+
+     sparse_matrix(const sparse_matrix& matrix) {}
+
+     ~sparse_matrix() {}
+
+     bool operator== (const sparse_matrix& mat) const&;
+
+     Matrix sparce_matrix_to_default();
+
+     void printDefault();
+     void printMatrix();
+
+     friend sparse_matrix sparse_multiplication(const sparse_matrix& A,
+      const sparse_matrix& B);
+     friend sparse_matrix sparse_multiplication_omp(const sparse_matrix& A,
+      const sparse_matrix& B);
+};
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A,
+  const sparse_matrix& B);
+sparse_matrix sparse_multiplication_omp(const sparse_matrix& A,
+  const sparse_matrix& B);
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B);
+Matrix random_matrix(const int& rows, const int& columns, const int& freq);
+
+#endif  // MODULES_TASK_2_YASHIN_K_CRS_MULT_DOUBLE_OMP_SPARSE_MATRIX_MULTIPLICATION_OMP_H_
+
+\end{lstlisting}
+Файл \verb|sparse_matrix_multiplication_omp.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+
+#include <omp.h>
+#include <iostream>
+#include <vector>
+#include <cstring>
+#include "../../modules/task_2/yashin_k_crs_mult_double_omp/sparse_matrix_multiplication_omp.h"
+
+bool sparse_matrix::operator== (const sparse_matrix& matrix) const& {
+    if (rows != matrix.rows || columns != matrix.columns)
+        return false;
+
+    for (int i = 0; i < rows; i++) {
+        if (row_index[i] != matrix.row_index[i])
+            return false;
+    }
+
+    for (int i = 0; i < columns; i++) {
+        if (col_index[i] != matrix.col_index[i])
+            return false;
+    }
+
+    for (size_t i = 0; i < values.size(); i++) {
+       if (std::fabs(matrix.values[i] - values[i]) > 0.001)
+            return false;
+    }
+    return true;
+}
+
+Matrix sparse_matrix::sparce_matrix_to_default() {
+    Matrix result(rows, std::vector<double>(columns, 0.0));
+
+    int temp_column = 0;
+    for (int i = 0; i < rows; i++) {
+        int temp_row = row_index[i + 1] - row_index[i];
+        while (temp_row) {
+            result[i][col_index[temp_column]] = values[temp_column];
+            temp_row -= 1;
+            temp_column += 1;
+        }
+    }
+    return result;
+}
+
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B) {
+    Matrix result(A.size());
+    for (size_t i = 0; i < result.size(); i++)
+        result[i].resize(B[0].size());
+
+    for (size_t i = 0; i < A.size(); i++) {
+        for (size_t j = 0; j < B[0].size(); j++) {
+            result[i][j] = 0;
+            for (size_t k = 0; k < A[0].size(); k++)
+                result[i][j] += A[i][k] * B[k][j];
+        }
+    }
+    return result;
+}
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A, const sparse_matrix& B) {
+    sparse_matrix result;
+    result.rows = A.rows;
+    result.columns = B.columns;
+    result.row_index.push_back(0);
+    std::vector<double> temp_result_row(B.columns, 0);
+
+    for (int i = 0; i < A.rows; i++) {
+        for (int j = A.row_index[i]; j < A.row_index[i + 1]; j++) {
+            int temp_column {A.col_index[j]};
+            for (int k = B.row_index[temp_column]; k < B.row_index[temp_column + 1]; k++)
+                temp_result_row[B.col_index[k]] += A.values[j] * B.values[k];
+        }
+        for (int k = 0; k < B.columns; k++) {
+            if (temp_result_row[k]) {
+                result.values.push_back(temp_result_row[k]);
+                result.col_index.push_back(k);
+                temp_result_row[k] = 0;
+            }
+        }
+        result.row_index.push_back(result.values.size());
+    }
+    return result;
+}
+
+sparse_matrix sparse_multiplication_omp(const sparse_matrix& A, const sparse_matrix& B) {
+    constexpr int numThreads{4};
+    omp_set_num_threads(numThreads);
+
+    sparse_matrix result{};
+    result.rows = A.rows;
+    result.columns = B.columns;
+    result.row_index.resize(result.rows + 1);
+    std::vector<int> temp_result_row(A.rows + 1, 0);
+    std::vector<int>* temp_result_column = new std::vector<int>[A.rows];
+    std::vector<double>* temp_result_values = new std::vector<double>[A.rows];
+    int temp_column = 0;
+
+#pragma omp parallel for default(shared) private(temp_column)
+    for (int i = 0; i < A.rows; i++) {
+        std::vector<double> temp_result(A.rows + 1, 0);
+        for (int j = A.row_index[i]; j < A.row_index[i + 1]; j++) {
+            temp_column = A.col_index[j];
+            for (int k = B.row_index[temp_column]; k < B.row_index[temp_column + 1]; k++)
+                temp_result[B.col_index[k]] += A.values[j] * B.values[k];
+        }
+        for (int k = 0; k < A.rows; k++) {
+            if (temp_result[k]) {
+                temp_result_values[i].push_back(temp_result[k]);
+                temp_result_column[i].push_back(k);
+                temp_result_row[i]++;
+            }
+        }
+    }
+
+    int count = 0;
+    int temp_rows = 0;
+
+    for (int i{0}; i < result.rows; ++i) {
+        int temp = temp_result_row[i];
+        result.row_index[i] = temp_rows;
+        temp_rows += temp;
+    }
+
+    result.row_index[A.rows] = temp_rows;
+    result.col_index.resize(temp_rows);
+    result.values.resize(temp_rows);
+    for (int i = 0; i < result.rows; i++) {
+        size_t size = temp_result_column[i].size();
+        if (size) {
+            memcpy(&result.col_index[count], &temp_result_column[i][0], size * sizeof(int));
+            memcpy(&result.values[count], &temp_result_values[i][0], size * sizeof(double));
+            count += size;
+        }
+    }
+    delete[]temp_result_column;
+    delete[]temp_result_values;
+
+    return result;
+}
+
+Matrix random_matrix(const int& rows, const int& columns, const int& freq) {
+    std::random_device rand{};
+    std::mt19937 mt {rand()};
+    std::uniform_real_distribution<double> rand_value {0.0, 10.0};
+    std::uniform_int_distribution<int> rand_probability {0, 100};
+    Matrix result{};
+    result.resize(rows);
+    for (int i = 0; i < rows; i++)
+        result[i].resize(columns);
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < columns; j++) {
+            if (rand_probability(mt) <= freq)
+                result[i][j] = rand_value(mt);
+        }
+    }
+    return result;
+}
+
+\end{lstlisting}
+Файл \verb|main.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <vector>
+#include "../../modules/task_2/yashin_k_crs_mult_double_omp/sparse_matrix_multiplication_omp.h"
+
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Multiply_Omp_Random) {
+    Matrix A(random_matrix(10, 10, 20));
+    Matrix B(random_matrix(10, 10, 20));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    sparse_matrix result_sparse = sparse_multiplication_omp(sA, sB);
+    Matrix result = matrix_multiplication(A, B);
+
+    sparse_matrix _result(result);
+
+    ASSERT_TRUE(_result == result_sparse);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Omp_Matrix_Multiplication_Size_50) {
+    Matrix A(random_matrix(50, 50, 70));
+    Matrix B(random_matrix(50, 50, 70));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    double t1_omp = omp_get_wtime();
+    sparse_matrix _sparse_result_omp = sparse_multiplication_omp(sA, sB);
+    double t2_omp = omp_get_wtime();
+
+    double t1_no_omp = omp_get_wtime();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    double t2_no_omp = omp_get_wtime();
+
+    double acceleration = (t2_no_omp - t1_no_omp) / (t2_omp - t1_omp);
+    std::cout << "OMP time for size 50: " << t2_omp - t1_omp
+              << "\nNo OMP time for size 50: " << t2_no_omp - t1_no_omp
+              << "\nAcceleration: " << acceleration << std::endl;
+    ASSERT_TRUE(sparse_result == _sparse_result_omp);
+    ASSERT_TRUE(sparse_result == _sparse_result);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Omp_Matrix_Multiplication_Size_100) {
+    Matrix A(random_matrix(100, 100, 60));
+    Matrix B(random_matrix(100, 100, 60));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    double t1_omp = omp_get_wtime();
+    sparse_matrix _sparse_result_omp = sparse_multiplication_omp(sA, sB);
+    double t2_omp = omp_get_wtime();
+
+    double t1_no_omp = omp_get_wtime();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    double t2_no_omp = omp_get_wtime();
+
+    double acceleration = (t2_no_omp - t1_no_omp) / (t2_omp - t1_omp);
+    std::cout << "OMP time for size 100: " << t2_omp - t1_omp
+              << "\nNo OMP time for size 100: " << t2_no_omp - t1_no_omp
+              << "\nAcceleration: " << acceleration << std::endl;
+    ASSERT_TRUE(sparse_result == _sparse_result_omp);
+    ASSERT_TRUE(sparse_result == _sparse_result);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Omp_Matrix_Multiplication_Size_250) {
+    Matrix A(random_matrix(250, 250, 50));
+    Matrix B(random_matrix(250, 250, 50));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    double t1_omp = omp_get_wtime();
+    sparse_matrix _sparse_result_omp = sparse_multiplication_omp(sA, sB);
+    double t2_omp = omp_get_wtime();
+
+    double t1_no_omp = omp_get_wtime();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    double t2_no_omp = omp_get_wtime();
+
+    double acceleration = (t2_no_omp - t1_no_omp) / (t2_omp - t1_omp);
+    std::cout << "OMP time for size 250: " << t2_omp - t1_omp
+              << "\nNo OMP time for size 250: " << t2_no_omp - t1_no_omp
+              << "\nAcceleration: " << acceleration << std::endl;
+    ASSERT_TRUE(sparse_result == _sparse_result_omp);
+    ASSERT_TRUE(sparse_result == _sparse_result);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Omp_Matrix_Multiplication_Size_500) {
+    Matrix A(random_matrix(500, 500, 30));
+    Matrix B(random_matrix(500, 500, 30));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    double t1_omp = omp_get_wtime();
+    sparse_matrix _sparse_result_omp = sparse_multiplication_omp(sA, sB);
+    double t2_omp = omp_get_wtime();
+
+    double t1_no_omp = omp_get_wtime();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    double t2_no_omp = omp_get_wtime();
+
+    double acceleration = (t2_no_omp - t1_no_omp) / (t2_omp - t1_omp);
+    std::cout << "OMP time for size 500: " << t2_omp - t1_omp
+              << "\nNo OMP time for size 500: " << t2_no_omp - t1_no_omp
+              << "\nAcceleration: " << acceleration << std::endl;
+    ASSERT_TRUE(sparse_result == _sparse_result_omp);
+    ASSERT_TRUE(sparse_result == _sparse_result);
+}
+
+\end{lstlisting}
+TBB версия:
+\newline
+Файл \verb|sparse_matrix_multiplication_tbb.h|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#ifndef MODULES_TASK_3_YASHIN_K_CRS_MULT_DOUBLE_TBB_SPARSE_MATRIX_MULTIPLICATION_TBB_H_
+#define MODULES_TASK_3_YASHIN_K_CRS_MULT_DOUBLE_TBB_SPARSE_MATRIX_MULTIPLICATION_TBB_H_
+
+#include <tbb/tbb.h>
+#include <iostream>
+#include <iomanip>
+#include <utility>
+#include <random>
+#include <cmath>
+#include <vector>
+
+using Matrix = std::vector<std::vector<double>>;
+
+class sparse_matrix {
+ public:
+     int rows;
+     int columns;
+     std::vector<double> values;
+     std::vector<int> col_index;
+     std::vector<int> row_index;
+
+     sparse_matrix() : rows(0), columns(0) {}
+     sparse_matrix(const int& _rows, const int& _columns, const int& cnt) {
+      rows = _rows;
+      columns = _columns;
+      values.resize(cnt);
+      col_index.resize(cnt);
+      row_index.resize(_rows + 1);
+     }
+
+     sparse_matrix(const int& _rows, const int& _columns, const std::vector<double>& _values,
+        const std::vector<int>& _col_index, const std::vector<int>& _row_index) : rows(_rows), columns(_columns),
+          values(_values), col_index(_col_index), row_index(_row_index) {}
+
+     explicit sparse_matrix(const Matrix& matrix) {
+      rows = matrix.size();
+      columns = matrix[0].size();
+
+      int el_in_row = 0;
+      row_index = {};
+      col_index = {};
+      values = {};
+      row_index.reserve(rows * columns);
+      col_index.reserve(rows * columns);
+      values.reserve(rows + 1);
+      row_index.push_back(0);
+
+      for (int i = 0; i < rows; i++) {
+          for (int j = 0; j < columns; j++) {
+              if (std::fabs(matrix[i][j]) >= 0.00001) {
+                  el_in_row++;
+                  values.push_back(matrix[i][j]);
+                  col_index.push_back(j);
+              }
+          }
+          row_index.push_back(el_in_row);
+      }
+     }
+
+     sparse_matrix(const sparse_matrix& matrix) : rows(matrix.rows), columns(matrix.columns),
+      values(matrix.values), col_index(matrix.col_index), row_index(matrix.row_index) {}
+
+     ~sparse_matrix() {}
+
+     bool operator== (const sparse_matrix& mat) const&;
+
+     Matrix sparce_matrix_to_default();
+
+     void printDefault();
+     void printMatrix();
+
+     friend sparse_matrix sparse_multiplication(const sparse_matrix& A,
+      const sparse_matrix& B);
+     friend sparse_matrix sparse_multiplication_tbb(const sparse_matrix& A,
+      const sparse_matrix& B);
+};
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A,
+  const sparse_matrix& B);
+sparse_matrix sparse_multiplication_tbb(const sparse_matrix& A,
+  const sparse_matrix& B);
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B);
+Matrix random_matrix(const int& rows, const int& columns, const int& freq);
+
+#endif  // MODULES_TASK_3_YASHIN_K_CRS_MULT_DOUBLE_TBB_SPARSE_MATRIX_MULTIPLICATION_TBB_H_
+
+\end{lstlisting}
+Файл \verb|sparse_matrix_multiplication_tbb.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+
+#include <tbb/tbb.h>
+#include <iostream>
+#include <vector>
+#include <cstring>
+#include <cmath>
+#include "../../modules/task_3/yashin_k_crs_mult_double_tbb/sparse_matrix_multiplication_tbb.h"
+
+bool sparse_matrix::operator== (const sparse_matrix& matrix) const& {
+    if (rows != matrix.rows || columns != matrix.columns)
+        return false;
+
+    for (int i = 0; i < rows; i++) {
+        if (row_index[i] != matrix.row_index[i])
+            return false;
+    }
+
+    for (int i = 0; i < columns; i++) {
+        if (col_index[i] != matrix.col_index[i])
+            return false;
+    }
+
+    for (size_t i = 0; i < values.size(); i++) {
+       if (std::fabs(matrix.values[i] - values[i]) > 0.01)
+            return false;
+    }
+    return true;
+}
+
+Matrix sparse_matrix::sparce_matrix_to_default() {
+    Matrix result(rows, std::vector<double>(columns, 0.0));
+
+    int temp_column = 0;
+    for (int i = 0; i < rows; i++) {
+        int temp_row = row_index[i + 1] - row_index[i];
+        while (temp_row) {
+            result[i][col_index[temp_column]] = values[temp_column];
+            temp_row -= 1;
+            temp_column += 1;
+        }
+    }
+    return result;
+}
+
+Matrix matrix_multiplication(const Matrix& A, const Matrix& B) {
+    Matrix result(A.size());
+    for (size_t i = 0; i < result.size(); i++)
+        result[i].resize(B[0].size());
+
+    for (size_t i = 0; i < A.size(); i++) {
+        for (size_t j = 0; j < B[0].size(); j++) {
+            result[i][j] = 0;
+            for (size_t k = 0; k < A[0].size(); k++)
+                result[i][j] += A[i][k] * B[k][j];
+        }
+    }
+    return result;
+}
+
+sparse_matrix sparse_multiplication(const sparse_matrix& A, const sparse_matrix& B) {
+    sparse_matrix result;
+    result.rows = A.rows;
+    result.columns = B.columns;
+    result.row_index.push_back(0);
+    std::vector<double> temp_result_row(B.columns, 0);
+
+    for (int i = 0; i < A.rows; i++) {
+        for (int j = A.row_index[i]; j < A.row_index[i + 1]; j++) {
+            int temp_column {A.col_index[j]};
+            for (int k = B.row_index[temp_column]; k < B.row_index[temp_column + 1]; k++)
+                temp_result_row[B.col_index[k]] += A.values[j] * B.values[k];
+        }
+        for (int k = 0; k < B.columns; k++) {
+            if (temp_result_row[k]) {
+                result.values.push_back(temp_result_row[k]);
+                result.col_index.push_back(k);
+                temp_result_row[k] = 0;
+            }
+        }
+        result.row_index.push_back(result.values.size());
+    }
+    return result;
+}
+
+sparse_matrix sparse_multiplication_tbb(const sparse_matrix& A, const sparse_matrix& B) {
+    int grain_size = 10;
+
+    sparse_matrix result;
+    result.rows = A.rows;
+    result.columns = B.columns;
+
+    result.row_index.resize(result.rows + 1);
+    std::vector<int> temp_result_row(A.rows + 1, 0);
+    std::vector<int>*    temp_result_columns = new std::vector<int>[result.rows];
+    std::vector<double>* temp_result_values = new std::vector<double>[result.rows];
+
+    tbb::parallel_for(tbb::blocked_range<int>(0, result.rows, grain_size), [&](tbb::blocked_range<int> r) {
+        int temp_column = 0;
+        for (int i = r.begin(); i < r.end(); i++) {
+            std::vector<double> temp_result(A.rows + 1, 0);
+            for (int j = A.row_index[i]; j < A.row_index[i + 1]; j++) {
+                temp_column = A.col_index[j];
+                for (int k = B.row_index[temp_column]; k < B.row_index[temp_column + 1]; k++)
+                    temp_result[B.col_index[k]] += A.values[j] * B.values[k];
+            }
+            for (int k = 0; k < A.rows; k++) {
+                if (temp_result[k]) {
+                    temp_result_values[i].push_back(temp_result[k]);
+                    temp_result_columns[i].push_back(k);
+                    temp_result_row[i]++;
+                }
+            }
+        }
+    });
+
+    int count = 0;
+    int temp_rows = 0;
+
+    for (int i = 0; i < result.rows; i++) {
+        int tmp = temp_result_row[i];
+        result.row_index[i] = temp_rows;
+        temp_rows += tmp;
+    }
+
+    result.row_index[A.rows] = temp_rows;
+    result.col_index.resize(temp_rows);
+    result.values.resize(temp_rows);
+    for (int i = 0; i < result.rows; i++) {
+        size_t size = temp_result_columns[i].size();
+        if (size) {
+            memcpy(&result.col_index[count], &temp_result_columns[i][0], size * sizeof(int));
+            memcpy(&result.values[count], &temp_result_values[i][0], size * sizeof(double));
+            count += size;
+        }
+    }
+
+    delete[]temp_result_columns;
+    delete[]temp_result_values;
+
+    return result;
+}
+
+Matrix random_matrix(const int& rows, const int& columns, const int& freq) {
+    std::random_device rand{};
+    std::mt19937 mt {rand()};
+    std::uniform_real_distribution<double> rand_values {0.0, 10.0};
+    std::uniform_int_distribution<int> rand_probability {0, 100};
+    Matrix result{};
+    result.resize(rows);
+    for (int i = 0; i < rows; i++)
+        result[i].resize(columns);
+
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < columns; j++) {
+            if (rand_probability(mt) <= freq)
+                result[i][j] = rand_values(mt);
+        }
+    }
+    return result;
+}
+
+\end{lstlisting}
+Файл \verb|main.cpp|
+\begin{lstlisting}
+// Copyright 2022 Yashin Kirill
+#include <gtest/gtest.h>
+#include <tbb/tbb.h>
+#include <iostream>
+#include <vector>
+#include "../../modules/task_3/yashin_k_crs_mult_double_tbb/sparse_matrix_multiplication_tbb.h"
+
+TEST(Yashin_Kirill_Sparse_Matrix, Can_Multiply_Tbb_Random) {
+    Matrix A(random_matrix(10, 10, 20));
+    Matrix B(random_matrix(10, 10, 20));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    sparse_matrix result_sparse = sparse_multiplication_tbb(sA, sB);
+    Matrix result = matrix_multiplication(A, B);
+
+    sparse_matrix _result(result);
+
+    ASSERT_TRUE(_result == result_sparse);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Tbb_Matrix_Multiplication_Size_100) {
+    Matrix A(random_matrix(100, 100, 20));
+    Matrix B(random_matrix(100, 100, 20));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    tbb::tick_count t1_tbb = tbb::tick_count::now();
+    sparse_matrix sparse_result_tbb = sparse_multiplication_tbb(sA, sB);
+    tbb::tick_count t2_tbb = tbb::tick_count::now();
+
+    tbb::tick_count t1_no_tbb = tbb::tick_count::now();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    tbb::tick_count t2_no_tbb = tbb::tick_count::now();
+
+    double acceleration = (t2_no_tbb - t1_no_tbb).seconds() / (t2_tbb - t1_tbb).seconds();
+    std::cout << "TBB time for size 100: " << (t2_tbb - t1_tbb).seconds()
+              << "\nNo TBB time for size 100: " << (t2_no_tbb - t1_no_tbb).seconds()
+              << "\nAcceleration: " << acceleration << std::endl;
+
+    ASSERT_TRUE(_sparse_result == sparse_result_tbb);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Tbb_Matrix_Multiplication_Size_250) {
+    Matrix A(random_matrix(100, 100, 20));
+    Matrix B(random_matrix(100, 100, 20));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    tbb::tick_count t1_tbb = tbb::tick_count::now();
+    sparse_matrix sparse_result_tbb = sparse_multiplication_tbb(sA, sB);
+    tbb::tick_count t2_tbb = tbb::tick_count::now();
+
+    tbb::tick_count t1_no_tbb = tbb::tick_count::now();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    tbb::tick_count t2_no_tbb = tbb::tick_count::now();
+
+    double acceleration = (t2_no_tbb - t1_no_tbb).seconds() / (t2_tbb - t1_tbb).seconds();
+    std::cout << "TBB time for size 250: " << (t2_tbb - t1_tbb).seconds()
+              << "\nNo TBB time for size 250: " << (t2_no_tbb - t1_no_tbb).seconds()
+              << "\nAcceleration: " << acceleration << std::endl;
+
+    ASSERT_TRUE(_sparse_result == sparse_result_tbb);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Tbb_Matrix_Multiplication_Size_500) {
+    Matrix A(random_matrix(500, 500, 20));
+    Matrix B(random_matrix(500, 500, 20));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    tbb::tick_count t1_tbb = tbb::tick_count::now();
+    sparse_matrix sparse_result_tbb = sparse_multiplication_tbb(sA, sB);
+    tbb::tick_count t2_tbb = tbb::tick_count::now();
+
+    tbb::tick_count t1_no_tbb = tbb::tick_count::now();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    tbb::tick_count t2_no_tbb = tbb::tick_count::now();
+
+    double acceleration = (t2_no_tbb - t1_no_tbb).seconds() / (t2_tbb - t1_tbb).seconds();
+    std::cout << "TBB time for size 500: " << (t2_tbb - t1_tbb).seconds()
+              << "\nNo TBB time for size 500: " << (t2_no_tbb - t1_no_tbb).seconds()
+              << "\nAcceleration: " << acceleration << std::endl;
+
+    ASSERT_TRUE(_sparse_result == sparse_result_tbb);
+}
+
+TEST(Yashin_Kirill_Sparse_Matrix, Test_Tbb_Matrix_Multiplication_Size_500_2) {
+    Matrix A(random_matrix(500, 500, 10));
+    Matrix B(random_matrix(500, 500, 10));
+
+    sparse_matrix sA(A);
+    sparse_matrix sB(B);
+
+    Matrix result = matrix_multiplication(A, B);
+    sparse_matrix sparse_result(result);
+
+    tbb::tick_count t1_tbb = tbb::tick_count::now();
+    sparse_matrix sparse_result_tbb = sparse_multiplication_tbb(sA, sB);
+    tbb::tick_count t2_tbb = tbb::tick_count::now();
+
+    tbb::tick_count t1_no_tbb = tbb::tick_count::now();
+    sparse_matrix _sparse_result = sparse_multiplication(sA, sB);
+    tbb::tick_count t2_no_tbb = tbb::tick_count::now();
+
+    double acceleration = (t2_no_tbb - t1_no_tbb).seconds() / (t2_tbb - t1_tbb).seconds();
+    std::cout << "TBB time for size 500: " << (t2_tbb - t1_tbb).seconds()
+              << "\nNo TBB time for size 500: " << (t2_no_tbb - t1_no_tbb).seconds()
+              << "\nAcceleration: " << acceleration << std::endl;
+
+    ASSERT_TRUE(_sparse_result == sparse_result_tbb);
+}
+
+\end{lstlisting}
+\end{document}
